@@ -309,6 +309,8 @@ function toast(m){const t=document.createElement('div');t.className='toast';t.te
    local : この端末のブラウザ（常に書く。オフラインでも動く）
    cloud : Supabase（設定＋ログイン済みのときだけ書く。端末間で同期される）  */
 const CFGK='lifeos:cloud';
+// このアプリ専用の接続先。RLSを有効にしているため公開しても安全なキー。
+const BUILTIN={"url":"https://brchbotdwbemakskjulp.supabase.co","key":"sb_publishable_g_9wHJkdypSAAIqpJMx0Gg_-vPz1WZX"};
 const local={
   async get(){
     if(window.storage&&window.storage.get){const r=await window.storage.get(KEY);return r&&r.value;}
@@ -321,7 +323,7 @@ const local={
 };
 const cloud={
   sb:null,user:null,err:null,synced:null,
-  cfg(){try{return JSON.parse(window.localStorage.getItem(CFGK)||'null');}catch(e){return null;}},
+  cfg(){try{return JSON.parse(window.localStorage.getItem(CFGK)||'null')||BUILTIN;}catch(e){return BUILTIN;}},
   setCfg(c){window.localStorage.setItem(CFGK,JSON.stringify(c));},
   clearCfg(){window.localStorage.removeItem(CFGK);this.sb=null;this.user=null;this.synced=null;},
   on(){return !!(this.sb&&this.user);},
