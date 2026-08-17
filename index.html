@@ -195,6 +195,37 @@
 .tx-a{font-family:var(--mono);font-weight:700;font-variant-numeric:tabular-nums}
 .inc{color:var(--mint)}
 
+/* ---------- habits ---------- */
+.ht-top{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.ht-card{overflow-x:auto;border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow);
+  padding:8px 8px 16px;margin-bottom:16px}
+.ht-row{display:flex}
+.ht-namecol{flex:0 0 176px;width:176px;position:sticky;left:0;z-index:2;background:var(--surface);
+  display:flex;align-items:center;gap:7px;padding:0 14px;font-size:13px;font-weight:600;
+  border-bottom:1px solid var(--line);min-height:40px}
+.ht-namecol .htn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.ht-headrow .ht-namecol{font-size:11.5px;font-weight:700;color:var(--muted);letter-spacing:.04em}
+.ht-daylabel,.ht-daycell,.ht-pct{flex:0 0 34px;width:34px;border-left:1px solid var(--line);
+  border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:center}
+.ht-daylabel{flex-direction:column;font-family:var(--mono);font-size:10px;color:var(--muted);padding:5px 0;
+  min-height:40px;gap:2px}
+.ht-daylabel.we{color:var(--accent);font-weight:700}
+.ht-daylabel.td{background:var(--accent-soft)}
+.ht-pct{font-family:var(--mono);font-size:10px;color:var(--muted);min-height:32px}
+.ht-check{width:18px;height:18px;border:2px solid var(--line);border-radius:6px;transition:.12s}
+.ht-check:hover{border-color:var(--accent);transform:scale(1.1)}
+.ht-check.on{background:var(--accent);border-color:var(--accent)}
+.ht-check.on::after{content:"";display:block;margin:1px 0 0 4px;width:4px;height:8px;
+  border:solid #fff;border-width:0 2px 2px 0;transform:rotate(42deg)}
+.ht-edit{opacity:0;font-size:10.5px;color:var(--muted);padding:2px 8px;border-radius:999px;flex:0 0 auto}
+.ht-namecol:hover .ht-edit{opacity:1}
+.ht-edit:hover{background:var(--surface2);color:var(--ink)}
+.ht-sumrow .ht-namecol{color:var(--muted);font-size:11.5px}
+.ht-chartcard{position:relative}
+.ht-tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font-size:11px;
+  font-weight:700;padding:5px 11px;border-radius:9px;white-space:nowrap;transform:translate(-50%,-125%);
+  box-shadow:var(--shadow-lg);z-index:5;opacity:0;transition:opacity .1s}
+
 /* ---------- reflective pages ---------- */
 .mincho{font-family:var(--serif)}
 .mincho .fld-l{font-family:var(--sans)}
@@ -299,7 +330,7 @@
 const app=document.getElementById('app'),view=document.getElementById('view');
 const KEY='lifeos:data:v1';
 let S={tasks:[],schedules:[],meetings:[],books:[],goals:[],files:[],transactions:[],diaries:[],
-  vision:{},settings:{theme:'light'}};
+  vision:{},settings:{theme:'light'},habits:[],habitLog:{}};
 let page='home', tab={}, q={};
 
 /* ---------- utils ---------- */
@@ -608,6 +639,24 @@ function taskForm(t){
     commit(isNew?'タスクを追加しました':'保存しました');
   },onDelete:isNew?null:()=>{S.tasks=S.tasks.filter(x=>x.id!==t.id);commit('削除しました');}});
 }
+function habitForm(h){
+  const isNew=!h;h=h||{};
+  openForm({title:isNew?'習慣を追加':'習慣を編集',fields:[
+    {key:'name',label:'習慣',req:1,value:h.name,ph:'例：5時に起きる'},
+    {key:'icon',label:'アイコン（絵文字1つ、任意）',half:1,value:h.icon,ph:'⏰'},
+    {key:'memo',label:'メモ',half:1,value:h.memo,ph:'任意'},
+  ],onSave:v=>{
+    const o={...h,...v};
+    if(isNew){o.id=uid();o.createdAt=today();o.order=S.habits.length;S.habits.push(o);}
+    else S.habits=S.habits.map(x=>x.id===h.id?o:x);
+    commit(isNew?'習慣を追加しました':'保存しました');
+  },onDelete:isNew?null:()=>{
+    S.habits=S.habits.filter(x=>x.id!==h.id);
+    const pre=h.id+'|';
+    Object.keys(S.habitLog).forEach(k=>{if(k.startsWith(pre))delete S.habitLog[k];});
+    commit('削除しました');
+  }});
+}
 function schedForm(s,date){
   const isNew=!s;s=s||{};
   const opts=['（なし）'].concat(S.tasks.filter(t=>!t.done).map(t=>t.title));
@@ -805,6 +854,63 @@ function monthOf(ym){
 function prevYM(ym){const[y,m]=ym.split('-').map(Number);
   return m===1?(y-1)+'-12':y+'-'+pad(m-1);}
 
+/* ---------- habits ---------- */
+function habitOn(id,d){return !!S.habitLog[id+'|'+d];}
+function toggleHabit(id,d){const k=id+'|'+d;
+  if(S.habitLog[k])delete S.habitLog[k];else S.habitLog[k]=1;commit();}
+function monthDays(ym){
+  const[y,m]=ym.split('-').map(Number),n=new Date(y,m,0).getDate(),out=[];
+  for(let i=1;i<=n;i++)out.push(y+'-'+pad(m)+'-'+pad(i));
+  return out;
+}
+function habitPct(habits,d){
+  if(!habits.length)return 0;
+  return Math.round(habits.filter(h=>habitOn(h.id,d)).length/habits.length*100);
+}
+function habitChartSVG(dates,pcts){
+  const W=Math.max(dates.length*24,320),H=132,pd=10;
+  const x=i=>dates.length>1?pd+i*(W-2*pd)/(dates.length-1):W/2;
+  const y=v=>pd+(H-2*pd)*(1-v/100);
+  const pts=pcts.map((v,i)=>[x(i),y(v)]);
+  const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  const area=line+` L${x(dates.length-1).toFixed(1)},${(H-pd).toFixed(1)} L${x(0).toFixed(1)},${(H-pd).toFixed(1)} Z`;
+  const gid='hg'+dates.length+dates[0];
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block" id="htsvg">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="var(--accent)" stop-opacity=".38"/>
+      <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+    </linearGradient></defs>
+    <line x1="${pd}" y1="${y(100).toFixed(1)}" x2="${W-pd}" y2="${y(100).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>
+    <line x1="${pd}" y1="${y(50).toFixed(1)}" x2="${W-pd}" y2="${y(50).toFixed(1)}" stroke="var(--line)" stroke-width="1" stroke-dasharray="2 4"/>
+    <line x1="${pd}" y1="${y(0).toFixed(1)}" x2="${W-pd}" y2="${y(0).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>
+    <path d="${area}" fill="url(#${gid})"/>
+    <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle id="htdot" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" style="opacity:0"/>
+    <line id="htcur" x1="0" y1="${pd}" x2="0" y2="${H-pd}" stroke="var(--accent)" stroke-width="1" style="opacity:0"/>
+  </svg>`;
+}
+function bindHabitChart(dates,pcts){
+  const svg=view.querySelector('#htsvg');if(!svg)return;
+  const tip=view.querySelector('#httip'),dot=view.querySelector('#htdot'),cur=view.querySelector('#htcur');
+  if(!tip||!dot||!cur)return;
+  const vb=svg.viewBox.baseVal,pd=10;
+  const move=e=>{
+    const r=svg.getBoundingClientRect();
+    const frac=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width));
+    const i=Math.round(frac*(dates.length-1));
+    const px=dates.length>1?pd+i*(vb.width-2*pd)/(dates.length-1):vb.width/2;
+    const py=pd+(vb.height-2*pd)*(1-pcts[i]/100);
+    dot.setAttribute('cx',px);dot.setAttribute('cy',py);dot.style.opacity=1;
+    cur.setAttribute('x1',px);cur.setAttribute('x2',px);cur.style.opacity=1;
+    tip.style.opacity=1;
+    tip.style.left=(px/vb.width*100)+'%';tip.style.top=(py/vb.height*100)+'%';
+    tip.textContent=jpDate(dates[i])+' '+pcts[i]+'%';
+  };
+  svg.onmousemove=move;
+  svg.onmouseleave=()=>{dot.style.opacity=0;cur.style.opacity=0;tip.style.opacity=0;};
+  svg.ontouchmove=e=>{if(e.touches[0])move(e.touches[0]);};
+}
+
 /* ---------- pages ---------- */
 const PAGES={
 
@@ -817,6 +923,7 @@ home(){
   const dn=S.tasks.filter(t=>t.done&&t.due===td).length;
   const tot=tt.length+dn, pct=tot?Math.round(dn/tot*100):0;
   const mg=S.goals.filter(g=>g.scope==='今月の目標');
+  const habitsToday=[...S.habits].sort((a,b)=>(a.order||0)-(b.order||0));
   const m=monthOf(ym), diary=S.diaries.find(x=>x.ym===ym);
   const reading=S.books.filter(b=>b.status==='読書中'), done=S.books.filter(b=>b.status==='読了');
   const recentM=[...S.meetings].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,3);
@@ -839,6 +946,7 @@ home(){
     <button data-qa="task">＋ タスク</button><button data-qa="sched">＋ 予定</button>
     <button data-qa="meet">＋ 議事録</button><button data-qa="book">＋ 読書</button>
     <button data-qa="tx">＋ 支出</button><button data-qa="diary">＋ 日記</button>
+    <button data-qa="habit">＋ 習慣</button>
   </div>
 
   <div class="grid g2">
@@ -849,7 +957,14 @@ home(){
     <div class="card"><h3>今日のスケジュール</h3>${timeline(td,true)}</div>
   </div>
 
-  <div class="grid g2" style="margin-top:14px">
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card" style="cursor:pointer" data-go="habits"><h3>今日の習慣 ${habitsToday.length?
+        `<span style="float:right;font-weight:400">${habitsToday.filter(h=>habitOn(h.id,td)).length}/${habitsToday.length}</span>`:''}</h3>
+      ${habitsToday.length?`<div class="gp" style="margin:-4px 0 12px"><i style="width:${habitPct(habitsToday,td)}%"></i></div>
+        <div class="stack" style="gap:8px">`+habitsToday.slice(0,5).map(h=>`<div class="row" style="gap:9px" data-hcell="${h.id}|${td}">
+          <div class="ht-check${habitOn(h.id,td)?' on':''}" style="flex:0 0 18px"></div>
+          <span style="font-size:13.5px">${h.icon?esc(h.icon)+' ':''}${esc(h.name)}</span></div>`).join('')+`</div>`:
+        `<div class="empty"><b>習慣がまだ登録されていません</b>上の「＋ 習慣」から始めましょう</div>`}</div>
     <div class="card"><h3>今月の目標</h3>
       ${mg.length?mg.map(g=>`<div class="goal" data-ged="${g.id}">
         <div class="row"><b style="font-size:13.5px;flex:1">${esc(g.title)}</b>
@@ -901,6 +1016,52 @@ todo(){
     `<div class="empty"><b>${t==='完了済み'?'完了したタスクはまだありません':'ここは空です'}</b>
     ${t==='すべて'||t==='今日'?'「＋ タスクを追加」から始めましょう':'他のタブを見てみてください'}</div>`}</div>
   ${t==='すべて'?'<p class="muted" style="font-size:11.5px;margin-top:10px">ドラッグで並び替えられます</p>':''}`;
+},
+
+habits(){
+  const ym=q.hym||thisYM(),td=today(),habits=[...S.habits].sort((a,b)=>(a.order||0)-(b.order||0));
+  const days=monthDays(ym),pcts=days.map(d=>habitPct(habits,d));
+  const doneCnt=days.reduce((s,d)=>s+habits.filter(h=>habitOn(h.id,d)).length,0);
+  const possible=habits.length*days.length;
+  const avgPct=possible?Math.round(doneCnt/possible*100):0;
+  const WD=['日','月','火','水','木','金','土'];
+
+  if(!habits.length)return `<div class="ph"><div><h1>習慣</h1><p>タスクとは別に、毎日の習慣と達成率を記録します</p></div>
+      <button class="btn" data-qa="habit">＋ 習慣を追加</button></div>
+    <div class="card"><div class="empty"><b>習慣がまだ登録されていません</b>
+      「早起き」「運動」「読書」など、毎日続けたいことを登録してみましょう</div></div>`;
+
+  return `<div class="ph"><div><h1>習慣</h1><p>タスクとは別に、毎日の習慣と達成率を記録します</p></div>
+    <div class="row"><input class="sr" type="month" id="hym" value="${ym}" style="width:140px">
+    <button class="btn ghost" data-qa="habit">＋ 習慣</button></div></div>
+
+  <div class="grid g3 ht-top">
+    <div class="stat"><span>習慣の数</span><b>${habits.length}</b></div>
+    <div class="stat"><span>${jpYM(ym)}の達成回数</span><b>${doneCnt}<small style="font-family:var(--sans)">/${possible}</small></b></div>
+    <div class="stat"><span>${jpYM(ym)}の平均達成率</span><b>${avgPct}%</b></div>
+  </div>
+
+  <div class="ht-card"><div style="min-width:${176+days.length*34}px">
+    <div class="ht-row ht-headrow">
+      <div class="ht-namecol">習慣</div>
+      ${days.map(d=>{const wd=new Date(d+'T00:00:00').getDay();
+        return `<div class="ht-daylabel${wd===0||wd===6?' we':''}${d===td?' td':''}">
+          <span>${WD[wd]}</span><span>${Number(d.slice(8))}</span></div>`;}).join('')}
+    </div>
+    ${habits.map(h=>`<div class="ht-row">
+      <div class="ht-namecol" data-hed="${h.id}"><span class="htn">${h.icon?esc(h.icon)+' ':''}${esc(h.name)}</span>
+        <span class="ht-edit">編集</span></div>
+      ${days.map(d=>`<div class="ht-daycell"><div class="ht-check${habitOn(h.id,d)?' on':''}"
+        data-hcell="${h.id}|${d}" role="checkbox" aria-checked="${habitOn(h.id,d)}" tabindex="0"></div></div>`).join('')}
+    </div>`).join('')}
+    <div class="ht-row ht-sumrow">
+      <div class="ht-namecol">達成率</div>
+      ${pcts.map(p=>`<div class="ht-pct">${p}%</div>`).join('')}
+    </div>
+  </div></div>
+
+  <div class="card ht-chartcard"><h3>達成率の推移（${jpYM(ym)}）</h3>
+    ${habitChartSVG(days,pcts)}<div class="ht-tip" id="httip"></div></div>`;
 },
 
 schedule(){
@@ -1083,7 +1244,7 @@ function viewBook(b){
 }
 
 /* ---------- nav / render ---------- */
-const NAV=[['home','ホーム','◇'],['todo','ToDo','☑'],['schedule','スケジュール','◷'],'sep',
+const NAV=[['home','ホーム','◇'],['todo','ToDo','☑'],['habits','習慣','◉'],['schedule','スケジュール','◷'],'sep',
   ['meetings','議事録','▤'],['books','読書','◫'],['files','資料','⌸'],'sep',
   ['vision','Vision と目標','◈'],['money','家計簿','¥'],['diary','月に書く日記','✎']];
 
@@ -1114,6 +1275,13 @@ function bind(){
   view.querySelectorAll('[data-newgoal]').forEach(b=>b.onclick=()=>goalForm(null,b.dataset.newgoal));
   view.querySelectorAll('[data-fav]').forEach(b=>b.onclick=e=>{e.stopPropagation();
     const f=S.files.find(x=>x.id===b.dataset.fav);f.fav=!f.fav;commit();});
+  view.querySelectorAll('[data-hed]').forEach(b=>b.onclick=()=>habitForm(S.habits.find(x=>x.id===b.dataset.hed)));
+  view.querySelectorAll('[data-hcell]').forEach(el=>{
+    const[hid,d]=el.dataset.hcell.split('|');
+    const go=()=>toggleHabit(hid,d);
+    el.onclick=e=>{e.stopPropagation();go();};
+    el.onkeydown=e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();e.stopPropagation();go();}};
+  });
   view.querySelectorAll('[data-ved]').forEach(b=>b.onclick=()=>{
     const k=b.dataset.ved,l=k==='vision'?'Vision':'大切にしたい価値観';
     openForm({title:l,fields:[{key:'v',label:l,type:'textarea',rows:9,value:S.vision[k],
@@ -1121,6 +1289,11 @@ function bind(){
       onSave:v=>{S.vision[k]=v.v;commit('保存しました');}});});
   const sd=view.querySelector('#sdate');if(sd)sd.onchange=()=>{q.date=sd.value;render();};
   const my=view.querySelector('#mym');if(my)my.onchange=()=>{q.ym=my.value;render();};
+  const hy=view.querySelector('#hym');if(hy)hy.onchange=()=>{q.hym=hy.value;render();};
+  if(page==='habits'&&S.habits.length){
+    const ym=q.hym||thisYM(),habits=[...S.habits].sort((a,b)=>(a.order||0)-(b.order||0));
+    const days=monthDays(ym);bindHabitChart(days,days.map(d=>habitPct(habits,d)));
+  }
   ['qm:m','qb:b','qf:f'].forEach(x=>{const[id,k]=x.split(':');
     const el=view.querySelector('#'+id);
     if(el)el.oninput=()=>{q[k]=el.value;const p=el.selectionStart;render();
@@ -1130,7 +1303,8 @@ function bind(){
     tls.scrollTop=nl?Math.max(0,parseFloat(nl.style.top)-160):8*64;}
 }
 const QA={task:()=>taskForm(),sched:()=>schedForm(null,q.date||today()),meet:()=>meetForm(),
-  book:()=>bookForm(),tx:()=>txForm(),diary:()=>diaryForm(thisYM()),goal:()=>goalForm(),file:()=>fileForm()};
+  book:()=>bookForm(),tx:()=>txForm(),diary:()=>diaryForm(thisYM()),goal:()=>goalForm(),file:()=>fileForm(),
+  habit:()=>habitForm()};
 
 /* ---------- chrome ---------- */
 document.getElementById('btheme').onclick=()=>{
