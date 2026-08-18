@@ -221,6 +221,12 @@
 .ht-namecol:hover .ht-edit{opacity:1}
 .ht-edit:hover{background:var(--surface2);color:var(--ink)}
 .ht-sumrow .ht-namecol{color:var(--muted);font-size:11.5px}
+.ht-hrate{flex:0 0 58px;width:58px;border-left:2px solid var(--line);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;
+  color:var(--accent);font-size:12.5px;background:var(--accent-soft)}
+.ht-headrow .ht-hrate{font-family:var(--sans);font-weight:700;color:var(--muted);font-size:11px;
+  background:transparent;letter-spacing:.02em}
+.ht-sumrow .ht-hrate{background:transparent;color:var(--muted)}
 .ht-chartcard{position:relative}
 .ht-tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font-size:11px;
   font-weight:700;padding:5px 11px;border-radius:9px;white-space:nowrap;transform:translate(-50%,-125%);
@@ -867,6 +873,10 @@ function habitPct(habits,d){
   if(!habits.length)return 0;
   return Math.round(habits.filter(h=>habitOn(h.id,d)).length/habits.length*100);
 }
+function habitMonthPct(h,days){
+  if(!days.length)return 0;
+  return Math.round(days.filter(d=>habitOn(h.id,d)).length/days.length*100);
+}
 function habitChartSVG(dates,pcts){
   const W=Math.max(dates.length*24,320),H=132,pd=10;
   const x=i=>dates.length>1?pd+i*(W-2*pd)/(dates.length-1):W/2;
@@ -1041,22 +1051,25 @@ habits(){
     <div class="stat"><span>${jpYM(ym)}の平均達成率</span><b>${avgPct}%</b></div>
   </div>
 
-  <div class="ht-card"><div style="min-width:${176+days.length*34}px">
+  <div class="ht-card"><div style="min-width:${176+days.length*34+58}px">
     <div class="ht-row ht-headrow">
       <div class="ht-namecol">習慣</div>
       ${days.map(d=>{const wd=new Date(d+'T00:00:00').getDay();
         return `<div class="ht-daylabel${wd===0||wd===6?' we':''}${d===td?' td':''}">
           <span>${WD[wd]}</span><span>${Number(d.slice(8))}</span></div>`;}).join('')}
+      <div class="ht-hrate">${Number(ym.split('-')[1])}月</div>
     </div>
     ${habits.map(h=>`<div class="ht-row">
       <div class="ht-namecol" data-hed="${h.id}"><span class="htn">${h.icon?esc(h.icon)+' ':''}${esc(h.name)}</span>
         <span class="ht-edit">編集</span></div>
       ${days.map(d=>`<div class="ht-daycell"><div class="ht-check${habitOn(h.id,d)?' on':''}"
         data-hcell="${h.id}|${d}" role="checkbox" aria-checked="${habitOn(h.id,d)}" tabindex="0"></div></div>`).join('')}
+      <div class="ht-hrate">${habitMonthPct(h,days)}%</div>
     </div>`).join('')}
     <div class="ht-row ht-sumrow">
       <div class="ht-namecol">達成率</div>
       ${pcts.map(p=>`<div class="ht-pct">${p}%</div>`).join('')}
+      <div class="ht-hrate">${avgPct}%</div>
     </div>
   </div></div>
 
