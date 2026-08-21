@@ -194,6 +194,13 @@
 .tx:hover{background:var(--surface2)}
 .tx-d{font-family:var(--mono);font-size:11.5px;color:var(--muted);width:46px;flex:0 0 46px}
 .tx-a{font-family:var(--mono);font-weight:700;font-variant-numeric:tabular-nums}
+.tx-day{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.04em;
+  padding:12px 6px 5px;border-top:1px solid var(--line)}
+.card h3+.tx-day,.tx-day:first-child{border-top:none;padding-top:2px}
+.bar-p{width:38px;text-align:right;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.cat-sum{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);margin-bottom:0}
+.cat-sum .bar-t{background:none}
+.cat-sum .bar-l,.cat-sum .bar-v,.cat-sum .bar-p{color:var(--ink);font-weight:700}
 .inc{color:var(--mint)}
 
 /* ---------- habits ---------- */
@@ -852,6 +859,47 @@ function bindSched(){
   view.querySelectorAll('[data-sed]').forEach(el=>el.onclick=()=>
     schedForm(S.schedules.find(x=>x.id===el.dataset.sed)));
 }
+function catTotals(m){
+  const byCat={};m.t.filter(x=>x.type==='支出').forEach(x=>byCat[x.category]=(byCat[x.category]||0)+x.amount);
+  return Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+}
+function catBars(m){
+  const cats=catTotals(m);
+  if(!cats.length)return `<div class="empty">支出の記録がありません</div>`;
+  const max=cats[0][1];
+  return cats.map(([c,v])=>`<div class="bar"><span class="bar-l">${esc(c)}</span>
+    <span class="bar-t"><i class="bar-f" style="display:block;width:${v/max*100}%"></i></span>
+    <span class="bar-v">${yen(v)}</span>
+    <span class="bar-p">${m.exp?Math.round(v/m.exp*100):0}%</span></div>`).join('')
+    +`<div class="bar cat-sum"><span class="bar-l">合計</span><span class="bar-t"></span>
+    <span class="bar-v">${yen(m.exp)}</span><span class="bar-p">100%</span></div>`;
+}
+function txList(list){
+  const rows=[...list].sort((a,b)=>b.date.localeCompare(a.date));
+  let out='',cur='';
+  rows.forEach(x=>{
+    if(x.date!==cur){cur=x.date;out+=`<div class="tx-day">${jpDate(x.date)}</div>`;}
+    out+=`<div class="tx" data-xed="${x.id}">
+      <span style="flex:1;font-size:13px">${esc(x.content||x.category)}</span>
+      <span class="chip">${esc(x.category)}</span>
+      <span class="tx-a ${x.type==='収入'?'inc':''}">${x.type==='収入'?'+':'−'}${yen(x.amount)}</span></div>`;
+  });
+  return out;
+}
+function monthSummary(ym){
+  const m=monthOf(ym),p=monthOf(prevYM(ym)),diff=m.exp-p.exp;
+  const days=new Set(m.t.filter(x=>x.type==='支出').map(x=>x.date)).size;
+  const html=`<div class="grid g3">
+    <div class="stat"><span>収入</span><b class="inc">${yen(m.inc)}</b></div>
+    <div class="stat"><span>支出</span><b>${yen(m.exp)}</b>
+      ${p.exp?`<small>前月比 ${diff>=0?'+':''}${yen(diff)}</small>`:''}</div>
+    <div class="stat"><span>収支</span><b class="${m.bal>=0?'inc':''}">${m.bal>=0?'+':''}${yen(m.bal)}</b></div>
+  </div>
+  <div class="card sec" style="margin-top:14px"><h3>カテゴリ別の支出</h3>${catBars(m)}</div>
+  <div class="card sec"><h3>この月の記録（${m.t.length}件・支出のあった日 ${days}日）</h3>
+    ${m.t.length?txList(m.t):`<div class="empty">記録がありません</div>`}</div>`;
+  openView(jpYM(ym)+'のまとめ',html);
+}
 function monthOf(ym){
   const t=S.transactions.filter(x=>(x.date||'').startsWith(ym));
   const inc=t.filter(x=>x.type==='収入').reduce((s,x)=>s+x.amount,0);
@@ -1162,12 +1210,10 @@ files(){
 
 money(){
   const ym=q.ym||thisYM(),m=monthOf(ym),p=monthOf(prevYM(ym));
-  const byCat={};m.t.filter(x=>x.type==='支出').forEach(x=>byCat[x.category]=(byCat[x.category]||0)+x.amount);
-  const cats=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
-  const max=cats.length?cats[0][1]:1;
   const diff=m.exp-p.exp;
   return `<div class="ph"><div><h1>家計簿</h1><p>${jpYM(ym)}</p></div>
     <div class="row"><input class="sr" type="month" id="mym" value="${ym}" style="width:140px">
+    <button class="btn ghost" id="msum">▤ 月まとめ</button>
     <button class="btn" data-qa="tx">＋ 記録</button></div></div>
   <div class="grid g3">
     <div class="stat"><span>収入</span><b class="inc">${yen(m.inc)}</b></div>
@@ -1176,18 +1222,12 @@ money(){
     <div class="stat"><span>収支</span><b class="${m.bal>=0?'inc':''}">${m.bal>=0?'+':''}${yen(m.bal)}</b></div>
   </div>
   <div class="grid g2" style="margin-top:14px">
-    <div class="card"><h3>カテゴリ別の支出</h3>
-      ${cats.length?cats.map(([c,v])=>`<div class="bar"><span class="bar-l">${esc(c)}</span>
-        <span class="bar-t"><i class="bar-f" style="display:block;width:${v/max*100}%"></i></span>
-        <span class="bar-v">${yen(v)}</span></div>`).join(''):`<div class="empty">支出の記録がありません</div>`}</div>
+    <div class="card"><h3>カテゴリ別の支出</h3>${catBars(m)}</div>
     <div class="card"><h3>明細</h3>
-      ${m.t.length?[...m.t].sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`<div class="tx" data-xed="${x.id}">
-        <span class="tx-d">${x.date.slice(5).replace('-','/')}</span>
-        <span style="flex:1;font-size:13px">${esc(x.content||x.category)}</span>
-        <span class="chip">${esc(x.category)}</span>
-        <span class="tx-a ${x.type==='収入'?'inc':''}">${x.type==='収入'?'+':'−'}${yen(x.amount)}</span></div>`).join(''):
+      ${m.t.length?txList(m.t):
         `<div class="empty"><b>${jpYM(ym)}の記録はありません</b>「＋ 記録」から追加できます</div>`}</div>
   </div>`;
+},
 },
 
 diary(){
@@ -1304,6 +1344,7 @@ function bind(){
       onSave:v=>{S.vision[k]=v.v;commit('保存しました');}});});
   const sd=view.querySelector('#sdate');if(sd)sd.onchange=()=>{q.date=sd.value;render();};
   const my=view.querySelector('#mym');if(my)my.onchange=()=>{q.ym=my.value;render();};
+  const ms=view.querySelector('#msum');if(ms)ms.onclick=()=>monthSummary(q.ym||thisYM());
   const hy=view.querySelector('#hym');if(hy)hy.onchange=()=>{q.hym=hy.value;render();};
   if(page==='habits'&&S.habits.length){
     const ym=q.hym||thisYM(),habits=[...S.habits].sort((a,b)=>(a.order||0)-(b.order||0));
