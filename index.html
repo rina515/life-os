@@ -353,6 +353,12 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 const pad=n=>String(n).padStart(2,'0');
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());};
 const thisYM=()=>today().slice(0,7);
+const PAYDAY=20; // 給料日。この日から次の給料日前日までを家計簿の1サイクルとする
+function cycleEndYM(ym){const[y,m]=ym.split('-').map(Number);return m===12?[y+1,1]:[y,m+1];}
+function thisCycleYm(){const[y,m,d]=today().split('-').map(Number);
+  return d>=PAYDAY?y+'-'+pad(m):prevYM(y+'-'+pad(m));}
+function cycleLabel(ym){const[y,m]=ym.split('-').map(Number);const[ey,em]=cycleEndYM(ym);
+  return `${y}年${m}月${PAYDAY}日 〜 ${ey}年${em}月${PAYDAY-1}日`;}
 const nowMin=()=>{const d=new Date();return d.getHours()*60+d.getMinutes();};
 const toMin=t=>{if(!t)return 0;const[a,b]=t.split(':').map(Number);return a*60+(b||0);};
 const yen=n=>'¥'+Number(n||0).toLocaleString('ja-JP');
@@ -887,24 +893,42 @@ function txList(list){
   return out;
 }
 function monthSummary(ym){
-  const m=monthOf(ym),p=monthOf(prevYM(ym)),diff=m.exp-p.exp;
+  const m=cycleOf(ym),p=cycleOf(prevYM(ym)),diff=m.exp-p.exp;
   const days=new Set(m.t.filter(x=>x.type==='支出').map(x=>x.date)).size;
   const html=`<div class="grid g3">
-    <div class="stat"><span>収入</span><b class="inc">${yen(m.inc)}</b></div>
+    <div class="stat"><span>給料</span><b class="inc">${yen(m.inc)}</b></div>
     <div class="stat"><span>支出</span><b>${yen(m.exp)}</b>
-      ${p.exp?`<small>前月比 ${diff>=0?'+':''}${yen(diff)}</small>`:''}</div>
-    <div class="stat"><span>収支</span><b class="${m.bal>=0?'inc':''}">${m.bal>=0?'+':''}${yen(m.bal)}</b></div>
+      ${p.exp?`<small>前サイクル比 ${diff>=0?'+':''}${yen(diff)}</small>`:''}</div>
+    <div class="stat"><span>残り</span><b class="${m.bal>=0?'inc':''}">${m.bal>=0?'+':''}${yen(m.bal)}</b></div>
   </div>
+  ${budgetBar(m)}
   <div class="card sec" style="margin-top:14px"><h3>カテゴリ別の支出</h3>${catBars(m)}</div>
   <div class="card sec"><h3>この月の記録（${m.t.length}件・支出のあった日 ${days}日）</h3>
     ${m.t.length?txList(m.t):`<div class="empty">記録がありません</div>`}</div>`;
-  openView(jpYM(ym)+'のまとめ',html);
+  openView(cycleLabel(ym)+'のまとめ',html);
 }
-function monthOf(ym){
-  const t=S.transactions.filter(x=>(x.date||'').startsWith(ym));
+function cycleOf(ym){
+  const start=ym+'-'+pad(PAYDAY);
+  const[ey,em]=cycleEndYM(ym);
+  const end=ey+'-'+pad(em)+'-'+pad(PAYDAY-1);
+  const t=S.transactions.filter(x=>x.date&&x.date>=start&&x.date<=end);
   const inc=t.filter(x=>x.type==='収入').reduce((s,x)=>s+x.amount,0);
   const exp=t.filter(x=>x.type==='支出').reduce((s,x)=>s+x.amount,0);
-  return{t,inc,exp,bal:inc-exp};
+  return{t,inc,exp,bal:inc-exp,start,end};
+}
+function budgetBar(m){
+  const pct=m.inc?Math.min(100,Math.round(m.exp/m.inc*100)):0;
+  return `<div class="card sec" style="margin-top:14px">
+    <h3>給料からの残り</h3>
+    <div class="bar" style="margin-bottom:0">
+      <span class="bar-l">使った分</span>
+      <span class="bar-t"><i class="bar-f" style="display:block;width:${pct}%"></i></span>
+      <span class="bar-v">${yen(m.exp)}</span>
+      <span class="bar-p">${m.inc?pct+'%':'−'}</span>
+    </div>
+    <p class="muted" style="font-family:var(--sans);font-size:11.5px;margin-top:10px">
+      給料 ${yen(m.inc)} − 支出 ${yen(m.exp)} = 残り ${yen(m.bal)}</p>
+  </div>`;
 }
 function prevYM(ym){const[y,m]=ym.split('-').map(Number);
   return m===1?(y-1)+'-12':y+'-'+pad(m-1);}
@@ -983,7 +1007,7 @@ home(){
   const tot=tt.length+dn, pct=tot?Math.round(dn/tot*100):0;
   const mg=S.goals.filter(g=>g.scope==='今月の目標');
   const habitsToday=[...S.habits].sort((a,b)=>(a.order||0)-(b.order||0));
-  const m=monthOf(ym), diary=S.diaries.find(x=>x.ym===ym);
+  const m=cycleOf(thisCycleYm()), diary=S.diaries.find(x=>x.ym===ym);
   const reading=S.books.filter(b=>b.status==='読書中'), done=S.books.filter(b=>b.status==='読了');
   const recentM=[...S.meetings].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,3);
   const recentB=[...S.books].filter(b=>b.finishedAt).sort((a,b)=>b.finishedAt.localeCompare(a.finishedAt)).slice(0,3);
@@ -1039,7 +1063,7 @@ home(){
     <div class="card"><h3>今月のお金</h3>
       ${m.t.length?`<div class="grid g2" style="gap:10px">
         <div class="stat"><span>支出</span><b>${yen(m.exp)}</b></div>
-        <div class="stat"><span>収支</span><b class="${m.bal>=0?'inc':''}">${m.bal>=0?'+':''}${yen(m.bal)}</b></div></div>`:
+        <div class="stat"><span>残り</span><b class="${m.bal>=0?'inc':''}">${m.bal>=0?'+':''}${yen(m.bal)}</b></div></div>`:
         `<div class="empty"><b>今月の記録はまだありません</b>「＋ 支出」から30秒で記録できます</div>`}</div>
   </div>
 
@@ -1209,23 +1233,24 @@ files(){
 },
 
 money(){
-  const ym=q.ym||thisYM(),m=monthOf(ym),p=monthOf(prevYM(ym));
+  const ym=q.ym||thisCycleYm(),m=cycleOf(ym),p=cycleOf(prevYM(ym));
   const diff=m.exp-p.exp;
-  return `<div class="ph"><div><h1>家計簿</h1><p>${jpYM(ym)}</p></div>
+  return `<div class="ph"><div><h1>家計簿</h1><p>${cycleLabel(ym)}</p></div>
     <div class="row"><input class="sr" type="month" id="mym" value="${ym}" style="width:140px">
     <button class="btn ghost" id="msum">▤ 月まとめ</button>
     <button class="btn" data-qa="tx">＋ 記録</button></div></div>
   <div class="grid g3">
-    <div class="stat"><span>収入</span><b class="inc">${yen(m.inc)}</b></div>
+    <div class="stat"><span>給料</span><b class="inc">${yen(m.inc)}</b></div>
     <div class="stat"><span>支出</span><b>${yen(m.exp)}</b>
-      ${p.exp?`<small>前月比 ${diff>=0?'+':''}${yen(diff)}</small>`:''}</div>
-    <div class="stat"><span>収支</span><b class="${m.bal>=0?'inc':''}">${m.bal>=0?'+':''}${yen(m.bal)}</b></div>
+      ${p.exp?`<small>前サイクル比 ${diff>=0?'+':''}${yen(diff)}</small>`:''}</div>
+    <div class="stat"><span>残り</span><b class="${m.bal>=0?'inc':''}">${m.bal>=0?'+':''}${yen(m.bal)}</b></div>
   </div>
+  ${budgetBar(m)}
   <div class="grid g2" style="margin-top:14px">
     <div class="card"><h3>カテゴリ別の支出</h3>${catBars(m)}</div>
     <div class="card"><h3>明細</h3>
       ${m.t.length?txList(m.t):
-        `<div class="empty"><b>${jpYM(ym)}の記録はありません</b>「＋ 記録」から追加できます</div>`}</div>
+        `<div class="empty"><b>${cycleLabel(ym)}の記録はありません</b>「＋ 記録」から追加できます</div>`}</div>
   </div>`;
 },
 
@@ -1343,7 +1368,7 @@ function bind(){
       onSave:v=>{S.vision[k]=v.v;commit('保存しました');}});});
   const sd=view.querySelector('#sdate');if(sd)sd.onchange=()=>{q.date=sd.value;render();};
   const my=view.querySelector('#mym');if(my)my.onchange=()=>{q.ym=my.value;render();};
-  const ms=view.querySelector('#msum');if(ms)ms.onclick=()=>monthSummary(q.ym||thisYM());
+  const ms=view.querySelector('#msum');if(ms)ms.onclick=()=>monthSummary(q.ym||thisCycleYm());
   const hy=view.querySelector('#hym');if(hy)hy.onchange=()=>{q.hym=hy.value;render();};
   if(page==='habits'&&S.habits.length){
     const ym=q.hym||thisYM(),habits=[...S.habits].sort((a,b)=>(a.order||0)-(b.order||0));
