@@ -641,7 +641,7 @@ function openView(title,html,onEdit){
 }
 
 /* ---------- entity forms ---------- */
-const CATS=['食費','交通費','家賃','光熱費','通信費','日用品','趣味','書籍','交際費','その他'];
+const CATS=['無形自己投資','投資','美容','日常、食、遊び','現金貯金'];
 
 function taskForm(t){
   const isNew=!t;t=t||{};
@@ -764,7 +764,7 @@ function txForm(t){
     {key:'type',label:'種別',type:'select',half:1,options:['支出','収入'],value:t.type||'支出'},
     {key:'amount',label:'金額',type:'number',req:1,half:1,value:t.amount},
     {key:'date',label:'日付',type:'date',half:1,value:t.date||today()},
-    {key:'category',label:'カテゴリ',type:'select',half:1,options:CATS,value:t.category||'食費'},
+    {key:'category',label:'カテゴリ',type:'select',half:1,options:CATS,value:t.category||CATS[0]},
     {key:'content',label:'内容',value:t.content,ph:'例：スーパー'},
     {key:'memo',label:'メモ',type:'textarea',rows:2,value:t.memo},
   ],onSave:v=>{
