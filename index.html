@@ -15,6 +15,7 @@
 <style>
 :root{
   --bg:#EFEAE1; --surface:#FAF7F2; --surface2:#E7E1D5; --ink:#3B3733; --ink2:#5E584F;
+  --glass:rgba(250,247,242,.88); --glass-strong:rgba(250,247,242,.95);
   --muted:#948C80; --line:#DED7C9; --accent:#8B8074; --accent-soft:#EDE4D3; --now:#BE8A4C;
   --danger:#A96A5C; --mint:#7C8A6F; --radius:22px;
   --glow:radial-gradient(1100px 620px at 88% -10%,rgba(206,160,98,.20),transparent 62%),
@@ -27,7 +28,7 @@
 #app[data-theme="dark"]{
   --bg:#201D19; --surface:#2A2622; --surface2:#35302A; --ink:#EFE8DC; --ink2:#D2C9BB;
   --muted:#9B9285; --line:#3A342D; --accent:#C7BAA6; --accent-soft:#332D26; --now:#DFA75F;
-  --danger:#D08977; --mint:#9BAF8C;
+  --danger:#D08977; --mint:#9BAF8C; --glass:rgba(42,38,34,.90); --glass-strong:rgba(42,38,34,.96);
   --glow:radial-gradient(1000px 580px at 86% -6%,rgba(224,167,95,.16),transparent 60%),
     radial-gradient(700px 480px at 2% 102%,rgba(0,0,0,.32),transparent 62%);
   --shadow:0 2px 12px rgba(0,0,0,.30); --shadow-lg:0 20px 48px rgba(0,0,0,.5);
@@ -58,6 +59,11 @@
   stroke-linecap:round;stroke-linejoin:round}
 .nav .sep{height:1px;background:var(--line);margin:10px 12px}
 .nav .mobile-more{display:none}
+.char-ic{display:none;background-image:url('assets/life-nav-characters.webp');background-repeat:no-repeat;
+  background-size:500% 100%;border-radius:999px}
+.char-home{background-position:0% 50%}.char-todo{background-position:25% 50%}
+.char-habits{background-position:50% 50%}.char-schedule{background-position:75% 50%}
+.char-more{background-position:100% 50%}
 .sb-status{font-size:11px;color:var(--muted);padding:10px 10px 0;letter-spacing:.02em}
 .sb-status.ng{color:var(--danger);font-weight:700}
 .sb-foot{display:flex;flex-wrap:wrap;gap:5px;padding:10px 6px 0;border-top:1px solid var(--line);margin-top:10px}
@@ -65,7 +71,9 @@
 .sb-foot button:hover{background:var(--surface2);color:var(--ink)}
 
 /* ---------- main ---------- */
-.main{flex:1;min-width:0;overflow-y:auto;max-height:900px}
+.main{flex:1;min-width:0;overflow-y:auto;max-height:900px;
+  background:linear-gradient(rgba(239,234,225,.78),rgba(239,234,225,.91)),url('assets/life-background.webp') center/cover fixed}
+#app[data-theme="dark"] .main{background:linear-gradient(rgba(32,29,25,.85),rgba(32,29,25,.94)),url('assets/life-background.webp') center/cover fixed}
 .wrap{max-width:1000px;padding:38px 44px 90px}
 .ph{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:26px}
 .ph h1{font-size:26px;font-weight:700;letter-spacing:.02em}
@@ -73,7 +81,8 @@
 .mincho .ph h1{font-family:var(--serif);font-weight:600;letter-spacing:.08em}
 
 /* ---------- primitives ---------- */
-.card{background:var(--surface);border-radius:var(--radius);padding:22px 24px;box-shadow:var(--shadow)}
+.card{background:var(--glass);border:1px solid rgba(255,255,255,.44);backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);border-radius:var(--radius);padding:22px 24px;box-shadow:var(--shadow)}
 .card h3{font-size:12.5px;font-weight:700;letter-spacing:.06em;color:var(--muted);margin-bottom:15px}
 .grid{display:grid;gap:16px}
 .g2{grid-template-columns:1fr 1fr}
@@ -105,9 +114,9 @@
 .sr:focus{outline:2px solid var(--accent);outline-offset:1px}
 
 /* ---------- hero ---------- */
-.hero{background:linear-gradient(125deg,var(--accent-soft) 0%,var(--surface) 64%);
+.hero{background:linear-gradient(125deg,rgba(237,228,211,.94) 0%,var(--glass-strong) 64%);
   border-radius:28px;padding:28px 32px;margin-bottom:18px;display:flex;gap:26px;align-items:center;
-  flex-wrap:wrap;box-shadow:var(--shadow)}
+  flex-wrap:wrap;box-shadow:var(--shadow);border:1px solid rgba(255,255,255,.52);backdrop-filter:blur(18px)}
 .hero-me{width:62px;height:62px;border-radius:999px;overflow:hidden;flex:0 0 62px;
   box-shadow:0 3px 14px rgba(110,96,74,.22);background:var(--surface2)}
 .hero-me img{width:100%;height:100%;object-fit:cover;display:block}
@@ -327,16 +336,19 @@
   #app{flex-direction:column;font-size:15.5px;padding-bottom:72px}
   .sb{position:fixed;left:0;right:0;bottom:0;z-index:80;width:100%;height:68px;flex:none;
     flex-direction:row;padding:7px 8px calc(7px + env(safe-area-inset-bottom));border-right:none;
-    border-top:1px solid var(--line);background:var(--surface);align-items:center;gap:2px;box-shadow:0 -4px 20px rgba(70,58,40,.10)}
+    border-top:1px solid rgba(255,255,255,.58);background:var(--glass-strong);backdrop-filter:blur(22px);
+    -webkit-backdrop-filter:blur(22px);align-items:center;gap:2px;box-shadow:0 -4px 20px rgba(70,58,40,.12)}
   .sb-brand{display:none}
   .sb-status{display:none}
   .sb-foot{display:none}
   .nav{width:100%;display:grid;grid-template-columns:repeat(5,1fr);gap:2px;overflow:visible}
   .nav button{min-width:0;white-space:nowrap;padding:5px 2px;font-size:10px;display:flex;flex-direction:column;gap:3px;justify-content:center;border-radius:14px}
-  .nav button .ic{width:22px;height:22px}
-  .nav button .ic svg{width:21px;height:21px;stroke-width:1.7}
+  .nav button .ic{display:none}
+  .nav button .char-ic{display:block;width:34px;height:34px;border:2px solid rgba(255,255,255,.76);
+    box-shadow:0 2px 8px rgba(65,52,38,.15);transition:.18s}
   .nav button.on{background:transparent;color:var(--accent)}
-  .nav button.on .ic{width:34px;border-radius:999px;background:var(--accent-soft)}
+  .nav button.on .char-ic{transform:translateY(-2px) scale(1.08);border-color:var(--now);
+    box-shadow:0 4px 12px rgba(80,61,40,.22)}
   .nav button.nav-secondary{display:none}
   .nav .mobile-more{display:flex}
   .nav .sep{display:none}
@@ -1396,8 +1408,8 @@ const NAV=[['home','ホーム','home'],['todo','ToDo','todo'],['habits','習慣'
 function renderNav(){
   let ni=0;
   document.getElementById('nav').innerHTML=NAV.map(n=>n==='sep'?'<div class="sep"></div>':
-    `<button data-go="${n[0]}" class="${page===n[0]?'on ':''}${ni++>3?'nav-secondary':''}"><span class="ic">${navIcon(n[2])}</span>${n[1]}</button>`).join('')+
-    `<button class="mobile-more" id="mobileMore"><span class="ic">${navIcon('more')}</span>その他</button>`;
+    `<button data-go="${n[0]}" class="${page===n[0]?'on ':''}${ni++>3?'nav-secondary':''}"><span class="ic">${navIcon(n[2])}</span><span class="char-ic char-${n[0]}"></span>${n[1]}</button>`).join('')+
+    `<button class="mobile-more" id="mobileMore"><span class="ic">${navIcon('more')}</span><span class="char-ic char-more"></span>その他</button>`;
   document.getElementById('nav').querySelectorAll('[data-go]').forEach(b=>
     b.onclick=()=>{page=b.dataset.go;render();view.parentElement.scrollTop=0;});
   const more=document.getElementById('mobileMore');
