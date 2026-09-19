@@ -414,6 +414,7 @@ function cycleLabel(ym){const[y,m]=ym.split('-').map(Number);const[ey,em]=cycleE
 const nowMin=()=>{const d=new Date();return d.getHours()*60+d.getMinutes();};
 const toMin=t=>{if(!t)return 0;const[a,b]=t.split(':').map(Number);return a*60+(b||0);};
 const autoEnd=t=>{const m=Math.min(23*60+59,toMin(t)+60);return pad(Math.floor(m/60))+':'+pad(m%60);};
+const schedulesFor=date=>S.schedules.filter(s=>s.date===date||(s.repeatDaily&&s.date<=date));
 const yen=n=>'¥'+Number(n||0).toLocaleString('ja-JP');
 const greet=h=>h<5?'ゆっくり休んでね':h<11?'おはよう':h<17?'こんにちは':h<21?'おつかれさま':'今日もおつかれさま';
 const jpDate=s=>{if(!s)return'';const d=new Date(s+'T00:00:00');
@@ -516,6 +517,25 @@ async function save(){
     }
   }
   inflight=false;status();
+}
+async function dailyScheduleBoot(){
+  S.settings=S.settings||{};
+  if(S.settings.dailyScheduleReady)return;
+  const td=today();
+  const recurring=S.schedules.some(s=>s.repeatDaily);
+  if(!recurring){
+    const dates=S.schedules.filter(s=>s.date&&s.date<=td).map(s=>s.date).sort();
+    const latest=dates[dates.length-1];
+    if(latest===td){
+      S.schedules.forEach(s=>{if(s.date===td)s.repeatDaily=true;});
+    }else if(latest){
+      S.schedules.filter(s=>s.date===latest).forEach(s=>S.schedules.push({
+        ...s,id:uid(),date:td,repeatDaily:true
+      }));
+    }
+  }
+  S.settings.dailyScheduleReady=true;
+  await save();render();
 }
 function status(){
   const b=document.getElementById('bsync');
@@ -738,14 +758,17 @@ function schedForm(s,date){
     {key:'date',label:'日付',type:'date',half:1,value:s.date||date||today()},
     {key:'category',label:'カテゴリ',half:1,value:s.category,ph:'仕事 / 休息 など'},
     {key:'start',label:'開始時間',type:'time',req:1,value:s.start||'09:00'},
+    {key:'repeat',label:'繰り返し',type:'select',half:1,options:['毎日','この日だけ'],
+      value:s.repeatDaily===false?'この日だけ':'毎日'},
     {key:'detail',label:'内容',type:'textarea',rows:2,value:s.detail},
     {key:'linked',label:'関連タスク',type:'select',options:opts,
       value:(S.tasks.find(t=>t.id===s.taskId)||{}).title||'（なし）'},
   ],onSave:v=>{
     const lt=S.tasks.find(t=>t.title===v.linked);
-    const o={...s,...v,end:autoEnd(v.start),taskId:lt?lt.id:null};delete o.linked;
+    const o={...s,...v,end:autoEnd(v.start),repeatDaily:v.repeat==='毎日',taskId:lt?lt.id:null};
+    delete o.linked;delete o.repeat;
     if(isNew){o.id=uid();S.schedules.push(o);}else S.schedules=S.schedules.map(x=>x.id===s.id?o:x);
-    commit(isNew?'予定を追加しました':'保存しました');
+    commit(isNew?(o.repeatDaily?'毎日の予定に追加しました':'予定を追加しました'):'保存しました');
   },onDelete:isNew?null:()=>{S.schedules=S.schedules.filter(x=>x.id!==s.id);commit('削除しました');}});
 }
 function meetForm(m){
@@ -888,7 +911,7 @@ function bindTasks(){
   });
 }
 function timeline(date,compact){
-  const evs=S.schedules.filter(s=>s.date===date).sort((a,b)=>toMin(a.start)-toMin(b.start));
+  const evs=schedulesFor(date).sort((a,b)=>toMin(a.start)-toMin(b.start));
   if(compact){
     if(!evs.length)return `<div class="empty">今日の予定はまだありません<br>
       <button class="btn ghost sm" data-qa="sched" style="margin-top:8px">予定を追加する</button></div>`;
@@ -1050,7 +1073,7 @@ const PAGES={
 
 home(){
   const d=new Date(),td=today(),ym=thisYM(),n=nowMin();
-  const evs=S.schedules.filter(s=>s.date===td).sort((a,b)=>toMin(a.start)-toMin(b.start));
+  const evs=schedulesFor(td).sort((a,b)=>toMin(a.start)-toMin(b.start));
   const cur=evs.find(s=>toMin(s.start)<=n&&n<toMin(s.end||autoEnd(s.start)));
   const nx=evs.find(s=>toMin(s.start)>n);
   const tt=S.tasks.filter(t=>!t.done&&(!t.due||t.due<=td));
@@ -1459,8 +1482,8 @@ function bind(){
     const title=view.querySelector('#quickTitle').value.trim();
     const start=view.querySelector('#quickStart').value;
     if(!title)return;
-    S.schedules.push({id:uid(),title,date:today(),start,end:autoEnd(start),category:'',detail:'',taskId:null});
-    commit('予定を追加しました');
+    S.schedules.push({id:uid(),title,date:today(),start,end:autoEnd(start),repeatDaily:true,category:'',detail:'',taskId:null});
+    commit('毎日の予定に追加しました');
   };
   const my=view.querySelector('#mym');if(my)my.onchange=()=>{q.ym=my.value;render();};
   const ms=view.querySelector('#msum');if(ms)ms.onclick=()=>monthSummary(q.ym||thisCycleYm());
@@ -1519,7 +1542,7 @@ setInterval(()=>{const c=document.getElementById('clock');
 
 gate();
 view.innerHTML='<p class="empty">読み込んでいます…</p>';
-load().then(render).then(syncBoot);
+load().then(render).then(syncBoot).then(dailyScheduleBoot);
 })();
 </script>
 
