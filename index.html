@@ -374,6 +374,30 @@
   .md-h,.md-b,.md-f{padding-left:20px;padding-right:20px}
 }
 @media(prefers-reduced-motion:reduce){#app *{transition:none!important}}
+
+/* ---------- desktop schedule widget ---------- */
+body.widget-mode{margin:0;background:var(--bg);overflow:hidden}
+.widget-mode #app{min-height:100vh;height:100vh;border-radius:0;padding:0;display:block}
+.widget-mode .sb{display:none!important}
+.widget-mode .main{width:100%;height:100vh;max-height:none;overflow-y:auto}
+.widget-mode .wrap{max-width:none;padding:16px 14px 28px}
+.widget-mode .hero{padding:18px;border-radius:24px;gap:13px;margin-bottom:12px}
+.widget-mode .hero-me{display:block;width:46px;height:46px;flex-basis:46px}
+.widget-mode .hero-hi{font-size:12px;margin-bottom:3px}
+.widget-mode .hero-time{font-size:38px}
+.widget-mode .hero-date{margin-top:5px;font-size:10px}
+.widget-mode .hero-sep{display:none}
+.widget-mode .hero-now{width:100%;flex-basis:100%;padding:13px 2px 0;border-top:1px solid var(--line)}
+.widget-mode .hero-title{font-size:18px;margin-top:2px}
+.widget-mode .hero-next{margin-top:4px;font-size:12px}
+.widget-mode .today-card{padding:18px 14px;border-radius:24px;margin-bottom:0}
+.widget-mode .today-head{align-items:flex-start}
+.widget-mode .today-head .btn{display:none}
+.widget-mode .quick-schedule{grid-template-columns:1fr auto;padding:9px;margin-bottom:12px}
+.widget-mode .quick-schedule .quick-title{grid-column:1/-1}
+.widget-mode .quick-schedule button{min-height:42px}
+.widget-mode .day-event{grid-template-columns:48px 1fr auto;gap:8px;padding:10px 4px}
+.widget-mode .qa,.widget-mode .qa~*{display:none!important}
 </style>
 
 <aside class="sb">
@@ -383,6 +407,7 @@
   <div class="sb-foot">
     <button id="btheme">◐ テーマ</button>
     <button id="bsync">☁ 同期</button>
+    <button id="bwidget">▣ ウィジェット</button>
     <button id="bexp">↓ 書き出し</button>
     <button id="bimp">↑ 読み込み</button>
   </div>
@@ -394,6 +419,8 @@
 <script>
 (function(){
 const app=document.getElementById('app'),view=document.getElementById('view');
+const widgetMode=new URLSearchParams(location.search).get('widget')==='1';
+if(widgetMode){document.body.classList.add('widget-mode');document.title='Life OS · 今日の予定';}
 const KEY='lifeos:data:v1';
 let S={tasks:[],schedules:[],meetings:[],books:[],goals:[],files:[],transactions:[],diaries:[],
   vision:{},settings:{theme:'light'},habits:[],habitLog:{}};
@@ -1514,6 +1541,8 @@ document.getElementById('bexp').onclick=()=>{
   a.download='life-os-'+today()+'.json';a.click();toast('JSONで書き出しました');};
 
 document.getElementById('bsync').onclick=()=>syncPanel();
+document.getElementById('bwidget').onclick=()=>window.open(
+  location.origin+location.pathname+'?widget=1','lifeos-widget','popup=yes,width=410,height=860');
 document.getElementById('bimp').onclick=()=>document.getElementById('fimp').click();
 document.getElementById('fimp').onchange=e=>{
   const f=e.target.files[0];if(!f)return;
