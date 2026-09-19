@@ -137,13 +137,13 @@
 .today-card{margin-bottom:18px;padding:24px 26px}
 .today-head{display:flex;align-items:center;gap:12px;margin-bottom:15px}
 .today-head h2{font-size:18px;flex:1}
-.quick-schedule{display:grid;grid-template-columns:minmax(150px,1fr) 104px 104px auto;gap:8px;
+.quick-schedule{display:grid;grid-template-columns:minmax(150px,1fr) 110px auto;gap:8px;
   padding:12px;border-radius:18px;background:var(--bg);margin-bottom:16px}
 .quick-schedule input{min-width:0;width:100%;padding:10px 12px;border:1.5px solid var(--line);
   border-radius:12px;background:var(--surface);color:var(--ink)}
 .quick-schedule input:focus{outline:none;border-color:var(--accent)}
 .day-list{display:flex;flex-direction:column}
-.day-event{display:grid;grid-template-columns:92px 1fr auto;align-items:center;gap:12px;
+.day-event{display:grid;grid-template-columns:56px 1fr auto;align-items:center;gap:12px;
   padding:12px 4px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:10px}
 .day-event:last-child{border-bottom:none}
 .day-event:hover{background:var(--bg)}
@@ -358,10 +358,10 @@
   .hero-me{width:52px;height:52px;flex:0 0 52px}
   .card{padding:20px}
   .today-card{padding:20px 16px;border-radius:24px}
-  .quick-schedule{grid-template-columns:1fr 1fr;padding:10px}
+  .quick-schedule{grid-template-columns:1fr auto;padding:10px}
   .quick-schedule .quick-title{grid-column:1/-1}
-  .quick-schedule button{grid-column:1/-1;min-height:44px}
-  .day-event{grid-template-columns:78px 1fr auto;gap:8px}
+  .quick-schedule button{min-height:44px}
+  .day-event{grid-template-columns:52px 1fr auto;gap:8px}
   .hero{align-items:flex-start;padding:24px 20px;border-radius:24px;gap:14px}
   .hero-me{display:none}
   .hero-time{font-size:46px}
@@ -413,6 +413,7 @@ function cycleLabel(ym){const[y,m]=ym.split('-').map(Number);const[ey,em]=cycleE
   return `${y}年${m}月${PAYDAY}日 〜 ${ey}年${em}月${PAYDAY-1}日`;}
 const nowMin=()=>{const d=new Date();return d.getHours()*60+d.getMinutes();};
 const toMin=t=>{if(!t)return 0;const[a,b]=t.split(':').map(Number);return a*60+(b||0);};
+const autoEnd=t=>{const m=Math.min(23*60+59,toMin(t)+60);return pad(Math.floor(m/60))+':'+pad(m%60);};
 const yen=n=>'¥'+Number(n||0).toLocaleString('ja-JP');
 const greet=h=>h<5?'ゆっくり休んでね':h<11?'おはよう':h<17?'こんにちは':h<21?'おつかれさま':'今日もおつかれさま';
 const jpDate=s=>{if(!s)return'';const d=new Date(s+'T00:00:00');
@@ -736,15 +737,13 @@ function schedForm(s,date){
     {key:'title',label:'タイトル',req:1,value:s.title,ph:'例：資料づくり'},
     {key:'date',label:'日付',type:'date',half:1,value:s.date||date||today()},
     {key:'category',label:'カテゴリ',half:1,value:s.category,ph:'仕事 / 休息 など'},
-    {key:'start',label:'開始',type:'time',req:1,half:1,value:s.start||'09:00'},
-    {key:'end',label:'終了',type:'time',req:1,half:1,value:s.end||'10:00'},
+    {key:'start',label:'開始時間',type:'time',req:1,value:s.start||'09:00'},
     {key:'detail',label:'内容',type:'textarea',rows:2,value:s.detail},
     {key:'linked',label:'関連タスク',type:'select',options:opts,
       value:(S.tasks.find(t=>t.id===s.taskId)||{}).title||'（なし）'},
   ],onSave:v=>{
-    if(toMin(v.end)<=toMin(v.start)){toast('終了時刻は開始より後にしてください');return;}
     const lt=S.tasks.find(t=>t.title===v.linked);
-    const o={...s,...v,taskId:lt?lt.id:null};delete o.linked;
+    const o={...s,...v,end:autoEnd(v.start),taskId:lt?lt.id:null};delete o.linked;
     if(isNew){o.id=uid();S.schedules.push(o);}else S.schedules=S.schedules.map(x=>x.id===s.id?o:x);
     commit(isNew?'予定を追加しました':'保存しました');
   },onDelete:isNew?null:()=>{S.schedules=S.schedules.filter(x=>x.id!==s.id);commit('削除しました');}});
@@ -895,9 +894,9 @@ function timeline(date,compact){
       <button class="btn ghost sm" data-qa="sched" style="margin-top:8px">予定を追加する</button></div>`;
     const n=nowMin();
     return `<div class="stack">`+evs.map(s=>{
-      const cur=date===today()&&toMin(s.start)<=n&&n<toMin(s.end);
+      const cur=date===today()&&toMin(s.start)<=n&&n<toMin(s.end||autoEnd(s.start));
       return `<div class="row" data-sed="${s.id}" style="cursor:pointer;gap:12px;padding:5px 0">
-        <span class="mono muted" style="font-size:11.5px;width:82px;flex:0 0 82px">${s.start}–${s.end}</span>
+        <span class="mono muted" style="font-size:11.5px;width:48px;flex:0 0 48px">${s.start}</span>
         <span style="font-size:13px;font-weight:${cur?'600':'400'};flex:1">${esc(s.title)}</span>
         ${cur?'<span class="chip warn">いま</span>':''}</div>`;}).join('')+`</div>`;
   }
@@ -906,9 +905,9 @@ function timeline(date,compact){
   for(let i=0;i<24;i++)h+=`<div class="tl-line" style="top:${i*H}px"></div>
     <div class="tl-h" style="top:${i*H}px">${pad(i)}:00</div>`;
   h+=evs.map(s=>{
-    const a=toMin(s.start),b=toMin(s.end),lt=S.tasks.find(t=>t.id===s.taskId);
-    return `<div class="tl-ev" data-sed="${s.id}" style="top:${a/60*H}px;height:${Math.max(22,(b-a)/60*H-3)}px">
-      <b>${esc(s.title)}</b><span>${s.start}–${s.end}${s.category?' · '+esc(s.category):''}${lt?' · ↳'+esc(lt.title):''}</span></div>`;
+    const a=toMin(s.start),lt=S.tasks.find(t=>t.id===s.taskId);
+    return `<div class="tl-ev" data-sed="${s.id}" style="top:${a/60*H}px;height:${H-3}px">
+      <b>${esc(s.title)}</b><span>${s.start}${s.category?' · '+esc(s.category):''}${lt?' · ↳'+esc(lt.title):''}</span></div>`;
   }).join('');
   if(isT)h+=`<div class="tl-now" id="nowline" style="top:${n/60*H}px"></div>`;
   return `<div class="tl-scroll" id="tls"><div class="tl" style="height:${24*H}px">${h}</div></div>`;
@@ -1052,7 +1051,7 @@ const PAGES={
 home(){
   const d=new Date(),td=today(),ym=thisYM(),n=nowMin();
   const evs=S.schedules.filter(s=>s.date===td).sort((a,b)=>toMin(a.start)-toMin(b.start));
-  const cur=evs.find(s=>toMin(s.start)<=n&&n<toMin(s.end));
+  const cur=evs.find(s=>toMin(s.start)<=n&&n<toMin(s.end||autoEnd(s.start)));
   const nx=evs.find(s=>toMin(s.start)>n);
   const tt=S.tasks.filter(t=>!t.done&&(!t.due||t.due<=td));
   const dn=S.tasks.filter(t=>t.done&&t.due===td).length;
@@ -1065,9 +1064,9 @@ home(){
   const recentB=[...S.books].filter(b=>b.finishedAt).sort((a,b)=>b.finishedAt.localeCompare(a.finishedAt)).slice(0,3);
   const recentF=[...S.files].slice(-3).reverse();
   const scheduleRows=evs.length?evs.map(s=>{
-    const a=toMin(s.start),b=toMin(s.end),isCur=a<=n&&n<b,isPast=b<=n;
+    const a=toMin(s.start),b=toMin(s.end||autoEnd(s.start)),isCur=a<=n&&n<b,isPast=b<=n;
     return `<div class="day-event${isCur?' current':isPast?' past':''}" data-sed="${s.id}">
-      <span class="day-event-time">${s.start}–${s.end}</span>
+      <span class="day-event-time">${s.start}</span>
       <span class="day-event-title">${esc(s.title)}</span>
       ${isCur?'<span class="chip warn">いま</span>':s.category?`<span class="chip">${esc(s.category)}</span>`:''}</div>`;
   }).join(''):`<div class="empty"><b>今日の予定はまだありません</b>上の入力欄からすぐ追加できます</div>`;
@@ -1089,7 +1088,6 @@ home(){
     <form class="quick-schedule" id="quickSchedule">
       <input class="quick-title" id="quickTitle" aria-label="予定名" placeholder="予定を入力" required>
       <input id="quickStart" type="time" aria-label="開始時刻" value="${pad(d.getHours())}:00" required>
-      <input id="quickEnd" type="time" aria-label="終了時刻" value="${d.getHours()===23?'23:59':pad(d.getHours()+1)+':00'}" required>
       <button class="btn sm" type="submit">＋ 追加</button>
     </form>
     <div class="day-list">${scheduleRows}</div>
@@ -1459,10 +1457,9 @@ function bind(){
   if(quick)quick.onsubmit=e=>{
     e.preventDefault();
     const title=view.querySelector('#quickTitle').value.trim();
-    const start=view.querySelector('#quickStart').value,end=view.querySelector('#quickEnd').value;
+    const start=view.querySelector('#quickStart').value;
     if(!title)return;
-    if(toMin(end)<=toMin(start)){toast('終了時刻は開始より後にしてください');return;}
-    S.schedules.push({id:uid(),title,date:today(),start,end,category:'',detail:'',taskId:null});
+    S.schedules.push({id:uid(),title,date:today(),start,end:autoEnd(start),category:'',detail:'',taskId:null});
     commit('予定を追加しました');
   };
   const my=view.querySelector('#mym');if(my)my.onchange=()=>{q.ym=my.value;render();};
