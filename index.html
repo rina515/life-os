@@ -537,7 +537,40 @@ async function syncBoot(){
   }catch(e){cloud.err=e.message||'同期できませんでした';}
   status();
 }
+// 完了タスクは端末の現地時間で、完了した日の翌日0:00に削除する。
+function cleanupCompletedTasks(now=new Date()){
+  const day=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const currentDay=day(now);
+  let changed=false;
+  S.tasks=S.tasks.filter(t=>{
+    if(!t.done)return true;
+    if(!t.completedOn){
+      const legacy=new Date(t.completedAt||t.updatedAt||now.getTime());
+      t.completedOn=Number.isNaN(legacy.getTime())?currentDay:day(legacy);
+      changed=true;
+    }
+    if(t.completedOn<currentDay){changed=true;return false;}
+    return true;
+  });
+  return changed;
+}
+let taskCleanupTimer;
+async function refreshTaskDay(){
+  if(cleanupCompletedTasks())await save();
+  render();
+  clearTimeout(taskCleanupTimer);
+  const now=new Date(),midnight=new Date(now);
+  midnight.setHours(24,0,0,0);
+  taskCleanupTimer=setTimeout(refreshTaskDay,midnight-now+50);
+}
+function taskCleanupBoot(){
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshTaskDay();});
+  window.addEventListener('focus',refreshTaskDay);
+  window.addEventListener('pageshow',refreshTaskDay);
+  return refreshTaskDay();
+}
 async function save(){
+  cleanupCompletedTasks();
   S.updatedAt=Date.now();
   dirty=true;
   if(inflight)return;
@@ -930,7 +963,10 @@ function taskRow(t,drag){
 }
 function bindTasks(){
   view.querySelectorAll('[data-tog]').forEach(el=>{
-    const go=()=>{const t=S.tasks.find(x=>x.id===el.dataset.tog);t.done=!t.done;t.updatedAt=Date.now();commit();};
+    const go=()=>{const t=S.tasks.find(x=>x.id===el.dataset.tog);t.done=!t.done;t.updatedAt=Date.now();
+      if(t.done){t.completedAt=t.updatedAt;t.completedOn=today();}
+      else{delete t.completedAt;delete t.completedOn;}
+      commit();};
     el.onclick=go;el.onkeydown=e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();go();}};
   });
   view.querySelectorAll('[data-ted]').forEach(el=>el.onclick=()=>
@@ -1588,7 +1624,7 @@ setInterval(()=>{const c=document.getElementById('clock');
 
 gate();
 view.innerHTML='<p class="empty">読み込んでいます…</p>';
-load().then(render).then(syncBoot).then(dailyScheduleBoot);
+load().then(render).then(syncBoot).then(dailyScheduleBoot).then(taskCleanupBoot);
 })();
 </script>
 
